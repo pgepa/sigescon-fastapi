@@ -7,7 +7,7 @@ import re
 class UsuarioBase(BaseModel):
     nome: str = Field(..., min_length=3, max_length=255, description="Nome completo do usuário")
     email: EmailStr = Field(..., description="Email único do usuário")
-    cpf: str = Field(..., min_length=11, max_length=11, description="CPF sem formatação")
+    cpf: Optional[str] = Field(..., min_length=11, max_length=11, description="CPF sem formatação")
     matricula: Optional[str] = Field(None, max_length=20, description="Matrícula do usuário")
     perfil_id: Optional[int] = Field(None, gt=0, description="ID do perfil do usuário (legado)")
 
