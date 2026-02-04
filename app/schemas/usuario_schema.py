@@ -11,6 +11,16 @@ class UsuarioBase(BaseModel):
     matricula: Optional[str] = Field(None, max_length=20, description="Matrícula do usuário")
     perfil_id: Optional[int] = Field(None, gt=0, description="ID do perfil do usuário (legado)")
 
+    @field_validator('cpf', mode='before')
+    @classmethod
+    def empty_cpf_to_none(cls, v):  # noqa: ANN001
+        """Normaliza string vazia ou em branco para None antes da validação do Field."""
+        if v is None:
+            return v
+        if isinstance(v, str) and v.strip() == '':
+            return None
+        return v
+
     @field_validator('cpf')
     @classmethod
     def validate_cpf(cls, v: Optional[str]) -> Optional[str]:
