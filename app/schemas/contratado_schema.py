@@ -1,14 +1,21 @@
 # app/schemas/contratado_schema.py
-from pydantic import BaseModel, EmailStr, ConfigDict
+from pydantic import BaseModel, EmailStr, ConfigDict, field_validator
 from typing import List, Optional
 
 # Campos compartilhados por outros schemas
 class ContratadoBase(BaseModel):
     nome: str
-    email: EmailStr
+    email: Optional[EmailStr] = None
     cnpj: Optional[str] = None
     cpf: Optional[str] = None
     telefone: Optional[str] = None
+
+    @field_validator('email', mode='before')
+    @classmethod
+    def empty_email_to_none(cls, v):
+        if isinstance(v, str) and v.strip() == '':
+            return None
+        return v
 
 # Schema para criação
 class ContratadoCreate(ContratadoBase):
