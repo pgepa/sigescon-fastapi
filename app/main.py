@@ -175,6 +175,9 @@ app.include_router(usuario_perfil_router.router)
 # Routers principais com prefixo /api/v1
 API_PREFIX = "/api/v1"
 
+# Mesmas rotas de /auth também em /api/v1/auth (útil se VITE_AUTH_API_URL apontar para a base /api/v1)
+app.include_router(auth_router.router, prefix=API_PREFIX)
+
 print("🔧 Registrando routers principais...")
 
 try:
