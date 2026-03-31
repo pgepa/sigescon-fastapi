@@ -21,6 +21,14 @@ class UsuarioBase(BaseModel):
             return None
         return v
 
+    @field_validator('nome', mode='before')
+    @classmethod
+    def normalize_nome_uppercase(cls, v):  # noqa: ANN001
+        """Normaliza o nome para caixa alta antes da validação."""
+        if isinstance(v, str):
+            return v.strip().upper()
+        return v
+
     @field_validator('cpf')
     @classmethod
     def validate_cpf(cls, v: Optional[str]) -> Optional[str]:
@@ -60,6 +68,14 @@ class UsuarioUpdate(BaseModel):
     matricula: Optional[str] = Field(None, max_length=20)
     perfil_id: Optional[int] = Field(None, gt=0)
     senha: Optional[str] = Field(None, min_length=6, description="Nova senha do usuário")
+
+    @field_validator('nome', mode='before')
+    @classmethod
+    def normalize_nome_uppercase_update(cls, v):  # noqa: ANN001
+        """Normaliza o nome para caixa alta antes da validação."""
+        if isinstance(v, str):
+            return v.strip().upper()
+        return v
 
     @field_validator('cpf')
     @classmethod
