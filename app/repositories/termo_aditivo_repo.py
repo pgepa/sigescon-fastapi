@@ -9,10 +9,9 @@ class TermoAditivoRepository:
         self.conn = conn
 
     async def get_proximo_numero(self, contrato_id: int) -> int:
-        """Retorna o próximo número sequencial de aditivo para o contrato.
-        Considera TODOS os registros (inclusive excluídos) para não reutilizar números."""
+        """Retorna o próximo número sequencial de aditivo para o contrato."""
         result = await self.conn.fetchval(
-            "SELECT COALESCE(MAX(numero_aditivo), 0) + 1 FROM termo_aditivo WHERE contrato_id = $1",
+            "SELECT COALESCE(MAX(numero_aditivo), 0) + 1 FROM termo_aditivo WHERE contrato_id = $1 AND ativo = TRUE",
             contrato_id
         )
         return result
@@ -23,8 +22,8 @@ class TermoAditivoRepository:
             INSERT INTO termo_aditivo (
                 contrato_id, numero_aditivo, tipo, objeto,
                 data_assinatura, data_publicacao, nova_data_fim,
-                valor_acrescimo, valor_supressao, pae, observacoes, ativo
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, TRUE)
+                valor_acrescimo, valor_supressao, pae, observacoes
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             RETURNING id
         """
         new_id = await self.conn.fetchval(
@@ -37,43 +36,28 @@ class TermoAditivoRepository:
 
     async def get_by_id(self, aditivo_id: int) -> Optional[Dict]:
         query = """
-            SELECT ta.*
+            SELECT
+                ta.*,
+                a.nome_arquivo as arquivo_nome
             FROM termo_aditivo ta
+            LEFT JOIN arquivo a ON ta.arquivo_id = a.id
             WHERE ta.id = $1 AND ta.ativo = TRUE
         """
         row = await self.conn.fetchrow(query, aditivo_id)
-        if not row:
-            return None
-        result = dict(row)
-        result["arquivo_nome"] = None
-        if result.get("arquivo_id"):
-            arquivo = await self.conn.fetchrow(
-                "SELECT nome_arquivo FROM arquivo WHERE id = $1", result["arquivo_id"]
-            )
-            if arquivo:
-                result["arquivo_nome"] = arquivo["nome_arquivo"]
-        return result
+        return dict(row) if row else None
 
     async def get_by_contrato(self, contrato_id: int) -> List[Dict]:
         query = """
-            SELECT ta.*
+            SELECT
+                ta.*,
+                a.nome_arquivo as arquivo_nome
             FROM termo_aditivo ta
+            LEFT JOIN arquivo a ON ta.arquivo_id = a.id
             WHERE ta.contrato_id = $1 AND ta.ativo = TRUE
             ORDER BY ta.numero_aditivo ASC
         """
         rows = await self.conn.fetch(query, contrato_id)
-        results = []
-        for row in rows:
-            r = dict(row)
-            r["arquivo_nome"] = None
-            if r.get("arquivo_id"):
-                arquivo = await self.conn.fetchrow(
-                    "SELECT nome_arquivo FROM arquivo WHERE id = $1", r["arquivo_id"]
-                )
-                if arquivo:
-                    r["arquivo_nome"] = arquivo["nome_arquivo"]
-            results.append(r)
-        return results
+        return [dict(r) for r in rows]
 
     async def update(self, aditivo_id: int, dados: TermoAditivoUpdate) -> Optional[Dict]:
         fields = dados.model_dump(exclude_none=True)
@@ -90,7 +74,7 @@ class TermoAditivoRepository:
 
     async def delete(self, aditivo_id: int) -> bool:
         result = await self.conn.execute(
-            "UPDATE termo_aditivo SET ativo = FALSE, updated_at = NOW() WHERE id = $1 AND ativo IS NOT FALSE",
+            "UPDATE termo_aditivo SET ativo = FALSE, updated_at = NOW() WHERE id = $1 AND ativo = TRUE",
             aditivo_id
         )
         return result == "UPDATE 1"

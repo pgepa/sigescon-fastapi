@@ -77,8 +77,8 @@ class TermoAditivoService:
 
         # Registra o arquivo na tabela arquivo
         insert_query = """
-            INSERT INTO arquivo (nome_arquivo, caminho_arquivo, tamanho_bytes, tipo_mime, contrato_id, tipo_vinculo)
-            VALUES ($1, $2, $3, $4, $5, 'termo_aditivo')
+            INSERT INTO arquivo (nome_arquivo, caminho_arquivo, tamanho_bytes, tipo_mime, contrato_id)
+            VALUES ($1, $2, $3, $4, $5)
             RETURNING id
         """
         arquivo_id = await self.repo.conn.fetchval(
