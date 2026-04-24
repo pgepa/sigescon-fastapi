@@ -146,10 +146,6 @@ class ContratoRepository:
                     where_clauses.append(f"c.{key} ILIKE ${param_idx}")
                     params.append(f"%{value}%")
                     param_idx += 1
-                elif key == 'contratado_nome':
-                    where_clauses.append(f"ct.nome ILIKE ${param_idx}")
-                    params.append(f"%{value}%")
-                    param_idx += 1
                 elif key == 'vencimento_dias':
                     # Filtro por proximidade de vencimento (cumulativo - "ou menos")
                     # Considera apenas contratos com status "Ativo"
@@ -195,8 +191,7 @@ class ContratoRepository:
                 ct.nome as contratado_nome,
                 s.nome as status_nome,
                 fiscal.nome as fiscal_nome,
-                gestor.nome as gestor_nome,
-                (SELECT COUNT(*) FROM termo_aditivo ta WHERE ta.contrato_id = c.id AND ta.ativo = TRUE) as total_aditivos
+                gestor.nome as gestor_nome
             {base_query}
             LEFT JOIN usuario fiscal ON c.fiscal_id = fiscal.id
             LEFT JOIN usuario gestor ON c.gestor_id = gestor.id

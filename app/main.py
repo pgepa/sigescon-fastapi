@@ -18,7 +18,6 @@ from app.api.routers import (
     arquivo_router, dashboard_router, config_router, audit_log_router
 )
 from app.api.routers import usuario_perfil_router
-from app.api.routers import termo_aditivo_router
 # Imports dos sistemas avançados
 from app.core.database import get_db_pool, close_db_pool
 from app.middleware.audit import AuditMiddleware
@@ -218,9 +217,6 @@ print(f"✅ Router de configurações registrado: {API_PREFIX}/config")
 
 app.include_router(audit_log_router.router, prefix=API_PREFIX)
 print(f"✅ Router de auditoria registrado: {API_PREFIX}/audit-logs")
-
-app.include_router(termo_aditivo_router.router, prefix=API_PREFIX)
-print(f"✅ Router de termos aditivos registrado: {API_PREFIX}/contratos/{{id}}/aditivos")
 
 
 # Routers de tabelas auxiliares

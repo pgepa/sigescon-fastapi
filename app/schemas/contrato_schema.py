@@ -103,7 +103,6 @@ class ContratoList(BaseModel):
     status_nome: Optional[str] = None
     fiscal_nome: Optional[str] = None
     gestor_nome: Optional[str] = None
-    total_aditivos: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
