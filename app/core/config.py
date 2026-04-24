@@ -8,7 +8,6 @@ class Settings(BaseSettings):
 
     # Configuração do Banco de Dados
     DATABASE_URL: str
-    DEBUG: bool = False
 
     # Configuração de Autenticação JWT
     JWT_SECRET_KEY: str

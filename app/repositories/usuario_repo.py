@@ -96,7 +96,6 @@ class UsuarioRepository:
         """Cria um novo usuário sem perfil - perfis devem ser concedidos via sistema de múltiplos perfis"""
         # Sempre cria usuário sem perfil (perfil_id = NULL)
         # Os perfis devem ser concedidos posteriormente via /usuarios/{id}/perfis/conceder
-        normalized_nome = user.nome.strip().upper()
         
         query = """
             INSERT INTO usuario (nome, email, cpf, matricula, senha_hash, perfil_id)
@@ -105,7 +104,7 @@ class UsuarioRepository:
         """
         new_user = await self.conn.fetchrow(
             query,
-            normalized_nome, user.email, user.cpf,
+            user.nome, user.email, user.cpf,
             user.matricula, hashed_password
         )
         return dict(new_user)
@@ -113,10 +112,6 @@ class UsuarioRepository:
     async def update_user(self, user_id: int, user: UsuarioUpdate) -> Optional[Dict]:
         """Atualiza dados de um usuário"""
         update_data = user.model_dump(exclude_unset=True, exclude={'senha', 'senha_hash'})
-
-        # Garante persistência em caixa alta no banco mesmo fora dos schemas/forms.
-        if 'nome' in update_data and isinstance(update_data['nome'], str):
-            update_data['nome'] = update_data['nome'].strip().upper()
         
         if not update_data:
             return await self.get_user_by_id(user_id)
