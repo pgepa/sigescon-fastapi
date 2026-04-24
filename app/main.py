@@ -13,7 +13,7 @@ import asyncpg
 # Imports dos routers existentes
 from app.api.routers import (
     contratado_router, auth_router, usuario_router, perfil_router,
-    modalidade_router, status_router, status_relatorio_router,
+    modalidade_router, termo_contratual_router, status_router, status_relatorio_router,
     status_pendencia_router, contrato_router, pendencia_router, relatorio_router,
     arquivo_router, dashboard_router, config_router, audit_log_router
 )
@@ -34,6 +34,7 @@ from app.api.exception_handlers import (
 from app.core.exceptions import SigesconException
 
 from app.api.doc_dependencies import get_admin_for_docs
+from app.core.config import settings
 
 
 # Configuração de logging
@@ -176,6 +177,9 @@ app.include_router(usuario_perfil_router.router)
 # Routers principais com prefixo /api/v1
 API_PREFIX = "/api/v1"
 
+# Mesmas rotas de /auth também em /api/v1/auth (útil se VITE_AUTH_API_URL apontar para a base /api/v1)
+app.include_router(auth_router.router, prefix=API_PREFIX)
+
 print("🔧 Registrando routers principais...")
 
 try:
@@ -222,26 +226,43 @@ print(f"✅ Router de termos aditivos registrado: {API_PREFIX}/contratos/{{id}}/
 # Routers de tabelas auxiliares
 app.include_router(perfil_router.router, prefix=API_PREFIX)
 app.include_router(modalidade_router.router, prefix=API_PREFIX)
+app.include_router(termo_contratual_router.router, prefix=API_PREFIX)
 app.include_router(status_router.router, prefix=API_PREFIX)
 app.include_router(status_relatorio_router.router, prefix=API_PREFIX)
 app.include_router(status_pendencia_router.router, prefix=API_PREFIX)
 
 # === ENDPOINTS ADICIONAIS ===
 
-@app.get("/docs", include_in_schema=False)
-async def get_protected_docs(is_admin: bool = Depends(get_admin_for_docs)):
-    """Rota protegida para a UI do Swagger."""
-    return get_swagger_ui_html(openapi_url="/openapi.json", title=app.title + " - Swagger UI")
+if settings.DEBUG:
+    @app.get("/docs", include_in_schema=False)
+    async def get_docs():
+        """Rota pública da UI do Swagger em modo de desenvolvimento."""
+        return get_swagger_ui_html(openapi_url="/openapi.json", title=app.title + " - Swagger UI")
 
-@app.get("/redoc", include_in_schema=False)
-async def get_protected_redoc(is_admin: bool = Depends(get_admin_for_docs)):
-    """Rota protegida para a UI do ReDoc."""
-    return get_redoc_html(openapi_url="/openapi.json", title=app.title + " - ReDoc")
+    @app.get("/redoc", include_in_schema=False)
+    async def get_redoc():
+        """Rota pública do ReDoc em modo de desenvolvimento."""
+        return get_redoc_html(openapi_url="/openapi.json", title=app.title + " - ReDoc")
 
-@app.get("/openapi.json", include_in_schema=False)
-async def get_protected_openapi(is_admin: bool = Depends(get_admin_for_docs)):
-    """Rota protegida para o schema OpenAPI."""
-    return JSONResponse(get_openapi(title=app.title, version=app.version, routes=app.routes))
+    @app.get("/openapi.json", include_in_schema=False)
+    async def get_openapi_json():
+        """Schema OpenAPI público em modo de desenvolvimento."""
+        return JSONResponse(get_openapi(title=app.title, version=app.version, routes=app.routes))
+else:
+    @app.get("/docs", include_in_schema=False)
+    async def get_protected_docs(is_admin: bool = Depends(get_admin_for_docs)):
+        """Rota protegida para a UI do Swagger."""
+        return get_swagger_ui_html(openapi_url="/openapi.json", title=app.title + " - Swagger UI")
+
+    @app.get("/redoc", include_in_schema=False)
+    async def get_protected_redoc(is_admin: bool = Depends(get_admin_for_docs)):
+        """Rota protegida para a UI do ReDoc."""
+        return get_redoc_html(openapi_url="/openapi.json", title=app.title + " - ReDoc")
+
+    @app.get("/openapi.json", include_in_schema=False)
+    async def get_protected_openapi(is_admin: bool = Depends(get_admin_for_docs)):
+        """Rota protegida para o schema OpenAPI."""
+        return JSONResponse(get_openapi(title=app.title, version=app.version, routes=app.routes))
 
 @app.get("/", tags=["Root"])
 async def read_root():
