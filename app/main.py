@@ -15,9 +15,10 @@ from app.api.routers import (
     contratado_router, auth_router, usuario_router, perfil_router,
     modalidade_router, status_router, status_relatorio_router,
     status_pendencia_router, contrato_router, pendencia_router, relatorio_router,
-    arquivo_router, dashboard_router, config_router, audit_log_router
+    arquivo_router, dashboard_router, config_router, audit_log_router, relatorio_fiscalizacao_router
 )
 from app.api.routers import usuario_perfil_router
+from app.api.routers import termo_aditivo_router
 # Imports dos sistemas avançados
 from app.core.database import get_db_pool, close_db_pool
 from app.middleware.audit import AuditMiddleware
@@ -45,20 +46,20 @@ notification_scheduler = NotificationScheduler()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Gerencia o ciclo de vida da aplicação"""
-    print("🚀 Iniciando aplicação SIGESCON...")
+    print("Iniciando aplicação SIGESCON...")
     
     # === STARTUP ===
     try:
         # 1. Conexão com banco de dados
-        print("📊 Conectando ao banco de dados...")
+        print("Conectando ao banco de dados...")
         await get_db_pool()
         
         # 2. Configuração do scheduler de notificações
-        print("⏰ Configurando scheduler de notificações...")
+        print("Configurando scheduler de notificações...")
         await notification_scheduler.setup_services()
         notification_scheduler.start_scheduler()
         
-        print("✅ Aplicação iniciada com sucesso!")
+        print("Aplicação iniciada com sucesso!")
         
         # Debug: Listar todas as rotas registradas
         print("\n🔍 DEBUG: Rotas registradas no FastAPI:")
@@ -66,30 +67,30 @@ async def lifespan(app: FastAPI):
             if hasattr(route, 'methods') and hasattr(route, 'path'):
                 methods = ', '.join(route.methods) if route.methods else 'N/A'
                 print(f"  {methods:<10} {route.path}")
-        print("🔍 DEBUG: Fim da lista de rotas\n")
+        print(" DEBUG: Fim da lista de rotas\n")
         
         yield  # Aplicação está rodando
         
     except Exception as e:
-        print(f"❌ Erro durante inicialização: {e}")
+        print(f" Erro durante inicialização: {e}")
         raise
     
     # === SHUTDOWN ===
-    print("🛑 Encerrando aplicação...")
+    print("Encerrando aplicação...")
     
     try:
         # 1. Para o scheduler
-        print("⏰ Parando scheduler...")
+        print(" Parando scheduler...")
         notification_scheduler.stop_scheduler()
         
         # 2. Fecha conexões do banco
-        print("📊 Fechando conexões do banco...")
+        print(" Fechando conexões do banco...")
         await close_db_pool()
         
-        print("✅ Aplicação encerrada com sucesso!")
+        print(" Aplicação encerrada com sucesso!")
     
     except Exception as e:
-        print(f"⚠️ Erro durante encerramento: {e}")
+        print(f" Erro durante encerramento: {e}")
 
 # Criação da aplicação FastAPI
 app = FastAPI(
@@ -122,7 +123,7 @@ app = FastAPI(
 # === CONFIGURAÇÃO CRUCIAL PARA RESOLVER REDIRECTS 307 ===
 
 app.router.redirect_slashes = False
-print("🔧 Redirects automáticos desabilitados - URLs com e sem barra final funcionam igualmente")
+print("Redirects automáticos desabilitados - URLs com e sem barra final funcionam igualmente")
 
 # === MIDDLEWARE ===
 
@@ -179,17 +180,17 @@ print("🔧 Registrando routers principais...")
 
 try:
     app.include_router(usuario_router.router, prefix=API_PREFIX)
-    print(f"✅ Router de usuários registrado: {API_PREFIX}/usuarios")
+    print(f"Router de usuários registrado: {API_PREFIX}/usuarios")
 except Exception as e:
-    print(f"❌ Erro ao registrar router de usuários: {e}")
+    print(f"Erro ao registrar router de usuários: {e}")
 
 try:
-    print(f"🔍 DEBUG: contratado_router.router = {contratado_router.router}")
-    print(f"🔍 DEBUG: Rotas no contratado_router: {[route.path for route in contratado_router.router.routes]}")
+    print(f"DEBUG: contratado_router.router = {contratado_router.router}")
+    print(f"DEBUG: Rotas no contratado_router: {[route.path for route in contratado_router.router.routes]}")
     app.include_router(contratado_router.router, prefix=API_PREFIX)
-    print(f"✅ Router de contratados registrado: {API_PREFIX}/contratados")
+    print(f"Router de contratados registrado: {API_PREFIX}/contratados")
 except Exception as e:
-    print(f"❌ Erro ao registrar router de contratados: {e}")
+    print(f"Erro ao registrar router de contratados: {e}")
     import traceback
     traceback.print_exc()
 
@@ -214,6 +215,10 @@ print(f"✅ Router de configurações registrado: {API_PREFIX}/config")
 app.include_router(audit_log_router.router, prefix=API_PREFIX)
 print(f"✅ Router de auditoria registrado: {API_PREFIX}/audit-logs")
 
+app.include_router(termo_aditivo_router.router, prefix=API_PREFIX)
+print(f"✅ Router de termos aditivos registrado: {API_PREFIX}/contratos/{{id}}/aditivos")
+
+app.include_router(relatorio_fiscalizacao_router.router, prefix=API_PREFIX)
 
 # Routers de tabelas auxiliares
 app.include_router(perfil_router.router, prefix=API_PREFIX)
@@ -394,11 +399,11 @@ app.openapi_tags = tags_metadata
 if __name__ == "__main__":
     import uvicorn
     
-    print("🔧 Modo de desenvolvimento detectado")
-    print("📚 Documentação disponível em: http://localhost:8000/docs")
-    print("🔍 ReDoc disponível em: http://localhost:8000/redoc")
-    print("❤️ Health check em: http://localhost:8000/health")
-    print("📊 Métricas em: http://localhost:8000/metrics")
+    print("Modo de desenvolvimento detectado")
+    print("Documentação disponível em: http://localhost:8000/docs")
+    print("ReDoc disponível em: http://localhost:8000/redoc")
+    print("Health check em: http://localhost:8000/health")
+    print("Métricas em: http://localhost:8000/metrics")
     
     uvicorn.run(
         "app.main:app",
