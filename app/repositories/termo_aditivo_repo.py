@@ -17,6 +17,13 @@ class TermoAditivoRepository:
         )
         return result
 
+    async def count_ativos(self, contrato_id: int) -> int:
+        """Conta termos aditivos ativos (não excluídos) do contrato."""
+        return await self.conn.fetchval(
+            "SELECT COUNT(*) FROM termo_aditivo WHERE contrato_id = $1 AND ativo = TRUE",
+            contrato_id
+        )
+
     async def create(self, contrato_id: int, dados: TermoAditivoCreate) -> Dict:
         numero = await self.get_proximo_numero(contrato_id)
         query = """

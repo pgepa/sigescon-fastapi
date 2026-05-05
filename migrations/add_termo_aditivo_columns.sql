@@ -3,7 +3,7 @@
 -- Data: 2026-04-23
 -- Descrição: Adiciona pae, valor_supressao, observacoes, arquivo_id e updated_at
 --            em termo_aditivo; adiciona tipo_vinculo em arquivo para identificar
---            se o arquivo pertence a um contrato, termo aditivo ou relatório.
+--            se o arquivo pertence a um contrato, tcd ermo aditivo ou relatório.
 
 -- 1. Colunas faltantes em termo_aditivo
 ALTER TABLE termo_aditivo
