@@ -36,6 +36,53 @@ class RelatorioRepository:
 
         return resultado
 
+    async def get_relatorios_por_contrato_id(self, contrato_id: int):
+        has_status = await self.db.fetchval(
+            "SELECT EXISTS ("
+            "  SELECT 1 FROM information_schema.columns"
+            "  WHERE table_name = 'relatorio_fiscalizacao' AND column_name = 'status'"
+            ")"
+        )
+        if has_status:
+            query = """
+                SELECT id, periodo_inicio, periodo_fim, data_relatorio, status, created_at
+                FROM relatorio_fiscalizacao
+                WHERE contrato_id = $1
+                ORDER BY created_at DESC
+            """
+        else:
+            query = """
+                SELECT id, periodo_inicio, periodo_fim, data_relatorio,
+                       'finalizado'::text AS status, created_at
+                FROM relatorio_fiscalizacao
+                WHERE contrato_id = $1
+                ORDER BY created_at DESC
+            """
+        return await self.db.fetch(query, contrato_id)
+
+    async def get_relatorio_by_id(self, relatorio_id: int):
+        query = """
+            SELECT rf.*, c.nr_contrato
+            FROM relatorio_fiscalizacao rf
+            JOIN contrato c ON rf.contrato_id = c.id
+            WHERE rf.id = $1
+        """
+        resultado = await self.db.fetchrow(query, relatorio_id)
+        if not resultado:
+            raise HTTPException(status_code=404, detail="Relatório não encontrado.")
+        return resultado
+
+    async def atualizar_relatorio(self, relatorio_id: int, dados: RelatorioCreateSchema):
+        dados_dict = dados.model_dump(exclude_unset=True)
+        if not dados_dict:
+            return relatorio_id
+        set_clauses = ", ".join([f"{k} = ${i+2}" for i, k in enumerate(dados_dict.keys())])
+        query = f"UPDATE relatorio_fiscalizacao SET {set_clauses} WHERE id = $1 RETURNING id"
+        result = await self.db.fetchval(query, relatorio_id, *dados_dict.values())
+        if not result:
+            raise HTTPException(status_code=404, detail="Relatório não encontrado.")
+        return result
+
     async def salvar_relatorio(self, contrato_id: int, dados: RelatorioCreateSchema):
         try:
             # Pega os dados do formulário ignorando o que não foi preenchido
