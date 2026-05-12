@@ -17,6 +17,7 @@ from app.api.routers import (
     status_pendencia_router, contrato_router, pendencia_router, relatorio_router,
     arquivo_router, dashboard_router, config_router, audit_log_router
 )
+from app.api.routers import relatorio_fiscalizacao_router
 from app.api.routers import usuario_perfil_router
 from app.api.routers import termo_aditivo_router
 # Imports dos sistemas avançados
@@ -202,6 +203,9 @@ print(f"✅ Router de pendências registrado: {API_PREFIX}/pendencias")
 
 app.include_router(relatorio_router.router, prefix=API_PREFIX)
 print(f"✅ Router de relatórios registrado: {API_PREFIX}/relatorios")
+
+app.include_router(relatorio_fiscalizacao_router.router, prefix=API_PREFIX)
+print(f"✅ Router de relatórios de fiscalização registrado: {API_PREFIX}/relatorios/salvar")
 
 app.include_router(arquivo_router.router, prefix=API_PREFIX)
 print(f"✅ Router de arquivos registrado: {API_PREFIX}/arquivos")
