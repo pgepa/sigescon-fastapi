@@ -1,16 +1,14 @@
 from asyncpg import Connection
 from fastapi import HTTPException
-from app.schemas.relatorio_fiscalizacao_schema import RelatorioCreateSchema
+from app.schemas.relatorio_fiscalizacao_schema import RelatorioCreateSchema, RelatorioRevisarSchema
 
 class RelatorioRepository:
     def __init__(self, db: Connection):
         self.db = db
 
     async def get_dados_contrato_completo(self, nr_contrato: str):
-        # A consulta SQL usa LEFT JOIN (equivalente ao outerjoin)
-        # O $1 é a forma como o asyncpg protege contra SQL Injection
         query = """
-            SELECT 
+            SELECT
                 c.id AS contrato_id,
                 c.nr_contrato,
                 c.pae,
@@ -20,45 +18,112 @@ class RelatorioRepository:
                 c.valor_global,
                 emp.nome AS empresa_nome,
                 emp.cnpj AS empresa_cnpj,
-                u.nome AS fiscal_nome,
-                u.matricula AS numero_matricula
+                fiscal.nome AS fiscal_nome,
+                fiscal.matricula AS numero_matricula,
+                fiscal.email AS fiscal_email,
+                gestor.nome AS gestor_nome,
+                gestor.email AS gestor_email
             FROM contrato c
             LEFT JOIN contratado emp ON c.contratado_id = emp.id
-            LEFT JOIN usuario u ON c.fiscal_id = u.id
+            LEFT JOIN usuario fiscal ON c.fiscal_id = fiscal.id
+            LEFT JOIN usuario gestor ON c.gestor_id = gestor.id
             WHERE c.nr_contrato = $1
         """
-        
-        # fetchrow retorna exatamente 1 linha do banco (como um dicionário)
         resultado = await self.db.fetchrow(query, nr_contrato)
-
         if not resultado:
             raise HTTPException(status_code=404, detail="Contrato não encontrado no banco de dados.")
-
         return resultado
 
-    async def get_relatorios_por_contrato_id(self, contrato_id: int):
-        has_status = await self.db.fetchval(
-            "SELECT EXISTS ("
-            "  SELECT 1 FROM information_schema.columns"
-            "  WHERE table_name = 'relatorio_fiscalizacao' AND column_name = 'status'"
-            ")"
+    async def _colunas_existem(self, *colunas: str) -> dict[str, bool]:
+        """Verifica quais colunas existem na tabela relatorio_fiscalizacao."""
+        rows = await self.db.fetch(
+            """
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name = 'relatorio_fiscalizacao'
+              AND column_name = ANY($1::text[])
+            """,
+            list(colunas),
         )
-        if has_status:
-            query = """
-                SELECT id, periodo_inicio, periodo_fim, data_relatorio, status, created_at
-                FROM relatorio_fiscalizacao
-                WHERE contrato_id = $1
-                ORDER BY created_at DESC
-            """
-        else:
-            query = """
-                SELECT id, periodo_inicio, periodo_fim, data_relatorio,
-                       'finalizado'::text AS status, created_at
-                FROM relatorio_fiscalizacao
-                WHERE contrato_id = $1
-                ORDER BY created_at DESC
-            """
+        encontradas = {r["column_name"] for r in rows}
+        return {c: c in encontradas for c in colunas}
+
+    async def get_relatorios_por_contrato_id(self, contrato_id: int):
+        """Retorna todos os relatórios do fiscal (inclusive rascunhos)."""
+        cols = await self._colunas_existem("updated_at", "gestor_observacao")
+        extra = ""
+        if cols["updated_at"]:
+            extra += ", updated_at"
+        if cols["gestor_observacao"]:
+            extra += ", gestor_observacao"
+        query = f"""
+            SELECT id, periodo_inicio, periodo_fim, data_relatorio, status, created_at{extra}
+            FROM relatorio_fiscalizacao
+            WHERE contrato_id = $1
+            ORDER BY created_at DESC
+        """
         return await self.db.fetch(query, contrato_id)
+
+    async def get_relatorios_para_gestor(self, contrato_id: int):
+        """Retorna apenas relatórios enviados ou já revisados — rascunhos ficam ocultos.
+        Inclui 'finalizado' para compatibilidade com registros anteriores à migração."""
+        cols = await self._colunas_existem("updated_at", "gestor_observacao")
+        extra = ""
+        if cols["updated_at"]:
+            extra += ", updated_at"
+        if cols["gestor_observacao"]:
+            extra += ", gestor_observacao"
+        query = f"""
+            SELECT id, periodo_inicio, periodo_fim, data_relatorio, status, created_at{extra}
+            FROM relatorio_fiscalizacao
+            WHERE contrato_id = $1
+              AND status IN ('enviado', 'aprovado', 'nao_conforme', 'finalizado')
+            ORDER BY created_at DESC
+        """
+        return await self.db.fetch(query, contrato_id)
+
+    async def enviar_relatorio(self, relatorio_id: int):
+        """Fiscal envia o relatório ao gestor — muda status de rascunho para enviado."""
+        cols = await self._colunas_existem("updated_at")
+        set_updated = ", updated_at = NOW()" if cols["updated_at"] else ""
+        result = await self.db.fetchrow(
+            f"""
+            UPDATE relatorio_fiscalizacao
+               SET status = 'enviado'{set_updated}
+             WHERE id = $1 AND status = 'rascunho'
+            RETURNING id, contrato_id
+            """,
+            relatorio_id,
+        )
+        if not result:
+            raise HTTPException(
+                status_code=404,
+                detail="Relatório não encontrado ou já foi enviado.",
+            )
+        return result
+
+    async def revisar_relatorio(self, relatorio_id: int, dados: RelatorioRevisarSchema):
+        """Gestor aprova ou retorna o relatório como não conforme."""
+        cols = await self._colunas_existem("updated_at", "gestor_observacao")
+        set_obs = ", gestor_observacao = $3" if cols["gestor_observacao"] else ""
+        set_updated = ", updated_at = NOW()" if cols["updated_at"] else ""
+        args = [relatorio_id, dados.status]
+        if cols["gestor_observacao"]:
+            args.append(dados.gestor_observacao)
+        result = await self.db.fetchval(
+            f"""
+            UPDATE relatorio_fiscalizacao
+               SET status = $2{set_obs}{set_updated}
+             WHERE id = $1 AND status = 'enviado'
+            RETURNING id
+            """,
+            *args,
+        )
+        if not result:
+            raise HTTPException(
+                status_code=404,
+                detail="Relatório não encontrado ou não está aguardando revisão.",
+            )
+        return result
 
     async def get_relatorio_by_id(self, relatorio_id: int):
         query = """

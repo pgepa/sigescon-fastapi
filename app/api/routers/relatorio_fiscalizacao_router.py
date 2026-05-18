@@ -4,7 +4,7 @@ from asyncpg import Connection
 import os
 
 from app.core.database import get_connection
-from app.schemas.relatorio_fiscalizacao_schema import RelatorioCreateSchema, RelatorioSalvarSchema
+from app.schemas.relatorio_fiscalizacao_schema import RelatorioCreateSchema, RelatorioSalvarSchema, RelatorioRevisarSchema
 from app.repositories.relatorio_fiscalizacao_repo import RelatorioRepository
 from app.services.relatorio_fiscalizacao_service import RelatorioService
 
@@ -19,30 +19,88 @@ def cleanup_files(*file_paths):
                 pass
 
 
+def _serializar_relatorio(r) -> dict:
+    keys = set(r.keys())
+    def _dt(val):
+        return val.isoformat() if val else None
+    return {
+        "id": r["id"],
+        "periodo_inicio": _dt(r["periodo_inicio"]),
+        "periodo_fim": _dt(r["periodo_fim"]),
+        "data_relatorio": _dt(r["data_relatorio"]),
+        "status": r["status"],
+        "gestor_observacao": r["gestor_observacao"] if "gestor_observacao" in keys else None,
+        "created_at": _dt(r["created_at"]),
+        "updated_at": _dt(r["updated_at"]) if "updated_at" in keys else None,
+    }
+
+
 @router.get("/listar/contrato/{contrato_id}")
 async def listar_relatorios_por_contrato(
     contrato_id: int,
     db: Connection = Depends(get_connection),
 ):
-    """Lista todos os relatórios de fiscalização salvos de um contrato."""
+    """Lista todos os relatórios do contrato — visão do fiscal (inclui rascunhos)."""
     try:
         repo = RelatorioRepository(db)
         rows = await repo.get_relatorios_por_contrato_id(contrato_id)
-        return [
-            {
-                "id": r["id"],
-                "periodo_inicio": r["periodo_inicio"].isoformat() if r["periodo_inicio"] else None,
-                "periodo_fim": r["periodo_fim"].isoformat() if r["periodo_fim"] else None,
-                "data_relatorio": r["data_relatorio"].isoformat() if r["data_relatorio"] else None,
-                "status": r["status"],
-                "created_at": r["created_at"].isoformat() if r["created_at"] else None,
-            }
-            for r in rows
-        ]
+        return [_serializar_relatorio(r) for r in rows]
     except HTTPException as http_exc:
         raise http_exc
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao listar relatórios: {str(e)}")
+
+
+@router.get("/gestor/contrato/{contrato_id}")
+async def listar_relatorios_para_gestor(
+    contrato_id: int,
+    db: Connection = Depends(get_connection),
+):
+    """Lista relatórios visíveis ao gestor — somente os que o fiscal enviou."""
+    try:
+        repo = RelatorioRepository(db)
+        rows = await repo.get_relatorios_para_gestor(contrato_id)
+        return [_serializar_relatorio(r) for r in rows]
+    except HTTPException as http_exc:
+        raise http_exc
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao listar relatórios para o gestor: {str(e)}")
+
+
+@router.post("/enviar/{relatorio_id}")
+async def enviar_relatorio(
+    relatorio_id: int,
+    db: Connection = Depends(get_connection),
+):
+    """Fiscal envia o relatório ao gestor. Muda status de rascunho → enviado e notifica o gestor."""
+    try:
+        repo = RelatorioRepository(db)
+        service = RelatorioService(repo)
+        result = await service.enviar_para_gestor(relatorio_id)
+        return {"id": result["id"], "status": "enviado", "mensagem": "Relatório enviado ao gestor com sucesso."}
+    except HTTPException as http_exc:
+        raise http_exc
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao enviar relatório: {str(e)}")
+
+
+@router.patch("/{relatorio_id}/revisar")
+async def revisar_relatorio(
+    relatorio_id: int,
+    dados: RelatorioRevisarSchema,
+    db: Connection = Depends(get_connection),
+):
+    """Gestor revisa o relatório: aprova (conforme) ou retorna como não conforme."""
+    try:
+        repo = RelatorioRepository(db)
+        service = RelatorioService(repo)
+        await service.revisar_relatorio(relatorio_id, dados)
+        labels = {"aprovado": "Relatório aprovado.", "nao_conforme": "Irregularidade registrada. Fiscal notificado."}
+        return {"id": relatorio_id, "status": dados.status, "mensagem": labels[dados.status]}
+    except HTTPException as http_exc:
+        raise http_exc
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao revisar relatório: {str(e)}")
 
 
 @router.get("/gerar-pdf-salvo/{relatorio_id}")

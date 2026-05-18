@@ -1,7 +1,20 @@
 # app/schemas/relatorio_fiscalizacao_schema.py
 from pydantic import BaseModel, Field
 from datetime import date, datetime
-from typing import Optional
+from typing import Optional, Literal
+
+
+# Status possíveis do relatório de fiscalização
+# rascunho   → fiscal está preenchendo, gestor não vê
+# enviado    → fiscal enviou, aguarda revisão do gestor
+# aprovado   → gestor aprovou (execução conforme contrato)
+# nao_conforme → gestor identificou irregularidade
+
+
+class RelatorioRevisarSchema(BaseModel):
+    """Usado pelo gestor para aprovar ou retornar o relatório."""
+    status: Literal["aprovado", "nao_conforme"]
+    gestor_observacao: Optional[str] = None
 
 
 class RelatorioCreateSchema(BaseModel):
@@ -45,8 +58,8 @@ class RelatorioCreateSchema(BaseModel):
 
 
 class RelatorioSalvarSchema(BaseModel):
-    """Usado para salvar rascunho ou relatório final — datas opcionais."""
-    status: str  # "rascunho" ou "finalizado"
+    """Usado para salvar rascunho — datas opcionais."""
+    status: Literal["rascunho"] = "rascunho"
 
     periodo_inicio: Optional[date] = None
     periodo_fim: Optional[date] = None
